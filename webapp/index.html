@@ -5,159 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Бронирование картинг-заезда</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        form { max-width: 400px; margin: 0 auto; }
-        label { display: block; margin-top: 10px; }
-        select, input { width: 100%; padding: 8px; margin-top: 5px; }
-        button { margin-top: 20px; padding: 10px; width: 100%; background: #007bff; color: white; border: none; }
-        .bookings { margin-top: 30px; }
-        .booking { border: 1px solid #ccc; padding: 10px; margin: 5px 0; }
-    </style>
+    <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-    <h1>Бронирование картинг-заезда</h1>
-    <div id="authStatus"></div>
+    <div class="container">
+        <h1>Бронирование картинг-заезда</h1>
 
-    <form id="bookingForm">
-        <label for="date">Дата:</label>
-        <input type="date" id="date" required>
+        <div id="authStatus" class="auth-status">
+            <!-- Статус авторизации -->
+        </div>
 
-        <label for="time">Время:</label>
-        <select id="time" required>
-            <option value="">Выберите время</option>
-        </select>
+        <div class="booking-form">
+            <div class="form-group">
+                <label for="date">Дата:</label>
+                <input type="date" id="date" required>
+            </div>
 
-        <label for="people">Количество человек (1-5):</label>
-        <input type="number" id="people" min="1" max="5" required>
+            <div class="form-group">
+                <label for="time">Время:</label>
+                <select id="time" required>
+                    <option value="">Выберите время</option>
+                </select>
+            </div>
 
-        <button type="submit">Забронировать</button>
-    </form>
+            <div class="form-group">
+                <label for="people">Количество человек (1-5):</label>
+                <input type="number" id="people" min="1" max="5" value="1" required>
+            </div>
 
-    <div id="myBookings" class="bookings" style="display: none;">
-        <h2>Мои бронирования</h2>
-        <button id="refreshBookings">Обновить</button>
-        <div id="bookingsList"></div>
+            <button id="bookBtn">Забронировать</button>
+        </div>
+
+        <div id="myBookings" class="bookings" style="display: none;">
+            <h2>Мои бронирования</h2>
+            <button id="refreshBookings" class="refresh-btn">Обновить</button>
+            <div id="bookingsList"></div>
+        </div>
     </div>
 
     <script>
-        const tg = window.Telegram.WebApp;
-        tg.expand();
-
-        const dateInput = document.getElementById('date');
-        const timeSelect = document.getElementById('time');
-        const authStatus = document.getElementById('authStatus');
-        const myBookings = document.getElementById('myBookings');
-        const bookingsList = document.getElementById('bookingsList');
-        const refreshBtn = document.getElementById('refreshBookings');
-
-        const API_URL = 'http://localhost:3000'; // Изменить на ваш сервер
-
-        // Установить минимальную дату
-        const today = new Date();
-        const minDate = today.toISOString().split('T')[0];
-        dateInput.min = minDate;
-
-        // Максимальная дата - 7 дней вперед
-        const maxDate = new Date(today);
-        maxDate.setDate(today.getDate() + 7);
-        dateInput.max = maxDate.toISOString().split('T')[0];
-
-        // Проверка авторизации
-        const user = tg.initDataUnsafe?.user;
-        if (user && user.phone_number) {
-            authStatus.innerHTML = `<p>Авторизован: ${user.first_name} (${user.phone_number})</p>`;
-            myBookings.style.display = 'block';
-            loadBookings();
-        } else {
-            authStatus.innerHTML = '<p>Для просмотра бронирований требуется авторизация по номеру телефона.</p>';
-        }
-
-        refreshBtn.addEventListener('click', loadBookings);
-
-        dateInput.addEventListener('change', () => {
-            const selectedDate = dateInput.value;
-            timeSelect.innerHTML = '<option value="">Выберите время</option>';
-            if (!selectedDate) return;
-
-            // Заполнить время (12:00-18:00, интервалы 10 мин)
-            const now = new Date();
-            const isToday = selectedDate === now.toISOString().split('T')[0];
-            for (let hour = 12; hour < 18; hour++) {
-                for (let min = 0; min < 60; min += 10) {
-                    const time = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
-                    if (isToday) {
-                        const slotTime = new Date(selectedDate + 'T' + time + ':00');
-                        if (slotTime <= now) continue;
-                    }
-                    const option = document.createElement('option');
-                    option.value = time;
-                    option.textContent = time;
-                    timeSelect.appendChild(option);
-                }
-            }
-        });
-
-        document.getElementById('bookingForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const date = dateInput.value;
-            const time = timeSelect.value;
-            const people = document.getElementById('people').value;
-
-            if (!date || !time || !people) {
-                alert('Заполните все поля');
-                return;
-            }
-
-            // Отправить данные в бот
-            tg.sendData(JSON.stringify({ date, time, people: parseInt(people) }));
-            tg.close();
-        });
-
-        async function loadBookings() {
-            if (!user || !user.id) return;
-            bookingsList.innerHTML = '<p>Загрузка бронирований...</p>';
-            try {
-                const response = await fetch(`${API_URL}/api/bookings?userId=${user.id}`);
-                const bookings = await response.json();
-                if (bookings.error) {
-                    bookingsList.innerHTML = '<p>Ошибка загрузки бронирований</p>';
-                    return;
-                }
-                if (bookings.length === 0) {
-                    bookingsList.innerHTML = '<p>Нет бронирований</p>';
-                    return;
-                }
-                bookingsList.innerHTML = bookings.map(b => `
-                    <div class="booking">
-                        <p>${b.date} ${b.time_slot} - ${b.people_count} чел. (${b.status})</p>
-                        ${b.status !== 'cancelled' ? `<button onclick="cancelBooking(${b.id})">Отменить</button>` : ''}
-                    </div>
-                `).join('');
-            } catch (error) {
-                bookingsList.innerHTML = '<p>Ошибка подключения к серверу</p>';
-            }
-        }
-
-        async function cancelBooking(bookingId) {
-            if (!user || !user.id) return;
-            try {
-                const response = await fetch(`${API_URL}/api/cancel`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ bookingId, userId: user.id })
-                });
-                const result = await response.json();
-                if (result.success) {
-                    alert('Бронирование отменено');
-                    loadBookings();
-                } else {
-                    alert('Ошибка отмены');
-                }
-            } catch (error) {
-                alert('Ошибка подключения');
-            }
-        }
+        window.API_URL = 'https://your-api-server.com'; // Заменить на process.env.API_URL
     </script>
+    <script src="js/app.js"></script>
 </body>
 </html>

@@ -49,6 +49,7 @@ Web App настроен для автоматического деплоя на
 
 - `GET /api/bookings?userId=<id>` - получить бронирования пользователя
 - `POST /api/cancel` - отменить бронирование (body: {bookingId, userId})
+- `POST /api/pay` - создать платеж для бронирования (body: {bookingId})
 
 ## Структура проекта
 
