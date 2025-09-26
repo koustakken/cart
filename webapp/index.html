@@ -36,6 +36,7 @@
 
     <div id="myBookings" class="bookings" style="display: none;">
         <h2>Мои бронирования</h2>
+        <button id="refreshBookings">Обновить</button>
         <div id="bookingsList"></div>
     </div>
 
@@ -48,6 +49,9 @@
         const authStatus = document.getElementById('authStatus');
         const myBookings = document.getElementById('myBookings');
         const bookingsList = document.getElementById('bookingsList');
+        const refreshBtn = document.getElementById('refreshBookings');
+
+        const API_URL = 'http://localhost:3000'; // Изменить на ваш сервер
 
         // Установить минимальную дату
         const today = new Date();
@@ -68,6 +72,8 @@
         } else {
             authStatus.innerHTML = '<p>Для просмотра бронирований требуется авторизация по номеру телефона.</p>';
         }
+
+        refreshBtn.addEventListener('click', loadBookings);
 
         dateInput.addEventListener('change', () => {
             const selectedDate = dateInput.value;
@@ -109,9 +115,48 @@
         });
 
         async function loadBookings() {
-            // Здесь можно добавить API вызов для получения бронирований, но пока заглушка
+            if (!user || !user.id) return;
             bookingsList.innerHTML = '<p>Загрузка бронирований...</p>';
-            // В реальности: fetch('/api/bookings').then(...)
+            try {
+                const response = await fetch(`${API_URL}/api/bookings?userId=${user.id}`);
+                const bookings = await response.json();
+                if (bookings.error) {
+                    bookingsList.innerHTML = '<p>Ошибка загрузки бронирований</p>';
+                    return;
+                }
+                if (bookings.length === 0) {
+                    bookingsList.innerHTML = '<p>Нет бронирований</p>';
+                    return;
+                }
+                bookingsList.innerHTML = bookings.map(b => `
+                    <div class="booking">
+                        <p>${b.date} ${b.time_slot} - ${b.people_count} чел. (${b.status})</p>
+                        ${b.status !== 'cancelled' ? `<button onclick="cancelBooking(${b.id})">Отменить</button>` : ''}
+                    </div>
+                `).join('');
+            } catch (error) {
+                bookingsList.innerHTML = '<p>Ошибка подключения к серверу</p>';
+            }
+        }
+
+        async function cancelBooking(bookingId) {
+            if (!user || !user.id) return;
+            try {
+                const response = await fetch(`${API_URL}/api/cancel`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bookingId, userId: user.id })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('Бронирование отменено');
+                    loadBookings();
+                } else {
+                    alert('Ошибка отмены');
+                }
+            } catch (error) {
+                alert('Ошибка подключения');
+            }
         }
     </script>
 </body>

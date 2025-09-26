@@ -1,6 +1,7 @@
 import * as dotenv from "dotenv";
 import TelegramBot from "node-telegram-bot-api";
 import express from "express";
+import cors from "cors";
 import path from "path";
 import { createTables, checkSlotAvailability, createBooking, getUserBookings, cancelBooking } from "./db";
 import { createPayment } from "./payment";
@@ -15,7 +16,37 @@ if (!token) {
 const bot = new TelegramBot(token, { polling: true });
 
 const app = express();
+app.use(cors());
 app.use(express.static(path.join(__dirname, "../public")));
+app.use(express.json());
+
+// API для получения бронирований пользователя
+app.get("/api/bookings", async (req, res) => {
+  const userId = req.query.userId as string;
+  if (!userId) {
+    return res.status(400).json({ error: "userId required" });
+  }
+  try {
+    const bookings = await getUserBookings(parseInt(userId));
+    res.json(bookings);
+  } catch (error) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// API для отмены бронирования
+app.post("/api/cancel", async (req, res) => {
+  const { bookingId, userId } = req.body;
+  if (!bookingId || !userId) {
+    return res.status(400).json({ error: "bookingId and userId required" });
+  }
+  try {
+    const success = await cancelBooking(bookingId, userId);
+    res.json({ success });
+  } catch (error) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
 app.listen(3000, () => {
   console.log("Web App server running on port 3000");
@@ -51,7 +82,7 @@ bot.onText(/\/start/, (msg) => {
     {
       reply_markup: {
         inline_keyboard: [
-          [{ text: "Открыть Web App", web_app: { url: "https://your-username.github.io/repo-name" } }], // Заменить на реальный URL GitHub Pages
+          [{ text: "Открыть Web App", web_app: { url: "https://koustakken.github.io/cart" } }], // Заменить на реальный URL GitHub Pages
         ],
       },
     }
@@ -166,8 +197,10 @@ bot.on("callback_query", async (query) => {
     const success = await cancelBooking(bookingId, state.userId);
     if (success) {
       bot.sendMessage(chatId, "Бронирование отменено.");
+      bot.answerCallbackQuery(query.id, { text: "Бронирование отменено" });
     } else {
       bot.sendMessage(chatId, "Не удалось отменить бронирование.");
+      bot.answerCallbackQuery(query.id, { text: "Ошибка отмены" });
     }
   }
 });
