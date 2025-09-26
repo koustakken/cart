@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Бронирование картинг-заезда</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        form { max-width: 400px; margin: 0 auto; }
+        label { display: block; margin-top: 10px; }
+        select, input { width: 100%; padding: 8px; margin-top: 5px; }
+        button { margin-top: 20px; padding: 10px; width: 100%; background: #007bff; color: white; border: none; }
+        .bookings { margin-top: 30px; }
+        .booking { border: 1px solid #ccc; padding: 10px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>Бронирование картинг-заезда</h1>
+    <div id="authStatus"></div>
+
+    <form id="bookingForm">
+        <label for="date">Дата:</label>
+        <input type="date" id="date" required>
+
+        <label for="time">Время:</label>
+        <select id="time" required>
+            <option value="">Выберите время</option>
+        </select>
+
+        <label for="people">Количество человек (1-5):</label>
+        <input type="number" id="people" min="1" max="5" required>
+
+        <button type="submit">Забронировать</button>
+    </form>
+
+    <div id="myBookings" class="bookings" style="display: none;">
+        <h2>Мои бронирования</h2>
+        <div id="bookingsList"></div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        const dateInput = document.getElementById('date');
+        const timeSelect = document.getElementById('time');
+        const authStatus = document.getElementById('authStatus');
+        const myBookings = document.getElementById('myBookings');
+        const bookingsList = document.getElementById('bookingsList');
+
+        // Установить минимальную дату
+        const today = new Date();
+        const minDate = today.toISOString().split('T')[0];
+        dateInput.min = minDate;
+
+        // Максимальная дата - 7 дней вперед
+        const maxDate = new Date(today);
+        maxDate.setDate(today.getDate() + 7);
+        dateInput.max = maxDate.toISOString().split('T')[0];
+
+        // Проверка авторизации
+        const user = tg.initDataUnsafe?.user;
+        if (user && user.phone_number) {
+            authStatus.innerHTML = `<p>Авторизован: ${user.first_name} (${user.phone_number})</p>`;
+            myBookings.style.display = 'block';
+            loadBookings();
+        } else {
+            authStatus.innerHTML = '<p>Для просмотра бронирований требуется авторизация по номеру телефона.</p>';
+        }
+
+        dateInput.addEventListener('change', () => {
+            const selectedDate = dateInput.value;
+            timeSelect.innerHTML = '<option value="">Выберите время</option>';
+            if (!selectedDate) return;
+
+            // Заполнить время (12:00-18:00, интервалы 10 мин)
+            const now = new Date();
+            const isToday = selectedDate === now.toISOString().split('T')[0];
+            for (let hour = 12; hour < 18; hour++) {
+                for (let min = 0; min < 60; min += 10) {
+                    const time = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+                    if (isToday) {
+                        const slotTime = new Date(selectedDate + 'T' + time + ':00');
+                        if (slotTime <= now) continue;
+                    }
+                    const option = document.createElement('option');
+                    option.value = time;
+                    option.textContent = time;
+                    timeSelect.appendChild(option);
+                }
+            }
+        });
+
+        document.getElementById('bookingForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const date = dateInput.value;
+            const time = timeSelect.value;
+            const people = document.getElementById('people').value;
+
+            if (!date || !time || !people) {
+                alert('Заполните все поля');
+                return;
+            }
+
+            // Отправить данные в бот
+            tg.sendData(JSON.stringify({ date, time, people: parseInt(people) }));
+            tg.close();
+        });
+
+        async function loadBookings() {
+            // Здесь можно добавить API вызов для получения бронирований, но пока заглушка
+            bookingsList.innerHTML = '<p>Загрузка бронирований...</p>';
+            // В реальности: fetch('/api/bookings').then(...)
+        }
+    </script>
+</body>
+</html>
